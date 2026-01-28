@@ -14,11 +14,11 @@ services:
       - path: /
     health_check:
       http_path: /api/health/
-      initial_delay_seconds: 60
+      initial_delay_seconds: 300
       period_seconds: 30
       timeout_seconds: 10
       success_threshold: 1
-      failure_threshold: 3
+      failure_threshold: 5
     envs:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.production
@@ -46,7 +46,7 @@ services:
       - key: VECTORSTORE_DIR
         value: "/data/chroma"
       - key: INIT_VECTORSTORE
-        value: "true"
+        value: "false"
       - key: GUNICORN_WORKERS
         value: "2"
       - key: GUNICORN_THREADS
