@@ -29,21 +29,23 @@ class HealthCheckView(APIView):
         """
         GET /api/health/
 
-        Returns system health status and vector store readiness.
+        Returns system health status. Lightweight — does not
+        initialize heavy dependencies like ChromaDB.
         """
-        try:
-            vectorstore = get_vectorstore()
-            is_ready = vectorstore.is_ready()
-            count = vectorstore.count() if is_ready else 0
-        except Exception:
-            is_ready = False
-            count = 0
-
         response_data = {
             'status': 'healthy',
-            'vectorstore_ready': is_ready,
-            'vectorstore_count': count
+            'vectorstore_ready': False,
+            'vectorstore_count': 0
         }
+
+        # Only check vectorstore if already initialized (avoid cold start)
+        from .rag.vectorstore import _vectorstore_instance
+        if _vectorstore_instance is not None:
+            try:
+                response_data['vectorstore_ready'] = _vectorstore_instance.is_ready()
+                response_data['vectorstore_count'] = _vectorstore_instance.count()
+            except Exception:
+                pass
 
         serializer = HealthCheckResponseSerializer(data=response_data)
         serializer.is_valid()
