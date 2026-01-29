@@ -1,7 +1,10 @@
 """
 Django management command to ingest PDF guidelines into the vector store.
+
+Memory-efficient: processes and stores one page at a time.
 """
 
+import gc
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 import pdfplumber
@@ -68,27 +71,23 @@ class Command(BaseCommand):
             self.stdout.write(f"\nProcessing: {pdf_path.name}")
 
             try:
-                chunks, metadatas, ids = self._process_pdf(
+                added = self._process_pdf_streaming(
                     pdf_path,
+                    vectorstore,
                     tokenizer,
                     chunk_size,
                     chunk_overlap
                 )
-
-                if chunks:
-                    self.stdout.write(f"  Adding {len(chunks)} chunks...")
-                    vectorstore.add_documents(
-                        documents=chunks,
-                        metadatas=metadatas,
-                        ids=ids
-                    )
-                    total_chunks += len(chunks)
-                    self.stdout.write(self.style.SUCCESS(f"  Done: {len(chunks)} chunks added"))
-                else:
-                    self.stdout.write(self.style.WARNING(f"  No text extracted"))
+                total_chunks += added
+                self.stdout.write(self.style.SUCCESS(
+                    f"  Done: {added} chunks added"
+                ))
 
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"  Error: {str(e)}"))
+
+            # Force garbage collection between PDFs
+            gc.collect()
 
         self.stdout.write(self.style.SUCCESS(
             f"\nIngestion complete. Total chunks: {total_chunks}"
@@ -98,52 +97,72 @@ class Command(BaseCommand):
         count = vectorstore.count()
         self.stdout.write(f"Vector store now contains {count} documents")
 
-    def _process_pdf(self, pdf_path: Path, tokenizer, chunk_size: int, chunk_overlap: int):
+    def _process_pdf_streaming(
+        self, pdf_path, vectorstore, tokenizer, chunk_size, chunk_overlap
+    ):
         """
-        Extract and chunk text from a PDF file.
-
-        Returns:
-            Tuple of (chunks, metadatas, ids)
+        Process a PDF page-by-page, writing each page's chunks to the
+        vector store immediately to minimize memory usage.
         """
         doc_id = pdf_path.name
-        chunks = []
-        metadatas = []
-        ids = []
+        added = 0
 
         with pdfplumber.open(pdf_path) as pdf:
-            for page_num, page in enumerate(pdf.pages, start=1):
+            total_pages = len(pdf.pages)
+            self.stdout.write(f"  Pages: {total_pages}")
+
+            for page_num in range(total_pages):
+                # Load one page at a time
+                page = pdf.pages[page_num]
                 text = page.extract_text()
 
                 if not text or not text.strip():
                     continue
 
-                # Clean text
                 text = self._clean_text(text)
 
-                # Chunk the page text
                 page_chunks = self._chunk_text(
-                    text,
-                    tokenizer,
-                    chunk_size,
-                    chunk_overlap
+                    text, tokenizer, chunk_size, chunk_overlap
                 )
 
-                for chunk_idx, chunk_text in enumerate(page_chunks):
-                    chunk_id = f"{doc_id.replace('.pdf', '')}_{page_num}_{chunk_idx:02d}"
+                if not page_chunks:
+                    continue
 
+                # Build batch for this page only
+                chunks = []
+                metadatas = []
+                ids = []
+
+                for chunk_idx, chunk_text in enumerate(page_chunks):
+                    chunk_id = f"{doc_id.replace('.pdf', '')}_{page_num + 1}_{chunk_idx:02d}"
                     chunks.append(chunk_text)
                     metadatas.append({
                         'doc_id': doc_id,
-                        'page': page_num,
+                        'page': page_num + 1,
                         'chunk_id': chunk_id,
                     })
                     ids.append(chunk_id)
 
-        return chunks, metadatas, ids
+                # Write immediately, then free memory
+                vectorstore.add_documents(
+                    documents=chunks,
+                    metadatas=metadatas,
+                    ids=ids
+                )
+                added += len(chunks)
+
+                self.stdout.write(
+                    f"  Page {page_num + 1}/{total_pages}: "
+                    f"{len(chunks)} chunks stored"
+                )
+
+                # Free page data
+                del chunks, metadatas, ids, page_chunks, text
+
+        return added
 
     def _clean_text(self, text: str) -> str:
         """Clean extracted text."""
-        # Remove excessive whitespace
         lines = text.split('\n')
         cleaned_lines = []
 
@@ -177,15 +196,12 @@ class Command(BaseCommand):
             chunk_tokens = tokens[start:end]
             chunk_text = tokenizer.decode(chunk_tokens)
 
-            # Clean up chunk boundaries
             chunk_text = chunk_text.strip()
             if chunk_text:
                 chunks.append(chunk_text)
 
-            # Move start with overlap
             start = end - chunk_overlap
 
-            # Prevent infinite loop
             if start >= len(tokens) - chunk_overlap:
                 break
 
