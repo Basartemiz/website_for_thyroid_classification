@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Left lobe - solid, larger -->
+  <path d="M14 20c-8 0-12 6-12 14s4 14 12 14c5 0 9-3 11-8l3-6-3-6c-2-5-6-8-11-8z" fill="#2563eb"/>
+  <!-- Right lobe - solid, larger -->
+  <path d="M50 20c8 0 12 6 12 14s-4 14-12 14c-5 0-9-3-11-8l-3-6 3-6c2-5 6-8 11-8z" fill="#2563eb"/>
+  <!-- Isthmus bridge - wider -->
+  <rect x="25" y="30" width="14" height="5" rx="2.5" fill="#1e40af"/>
+  <!-- Nodule indicator - larger, solid -->
+  <circle cx="42" cy="28" r="7" fill="#0d9488"/>
+</svg>

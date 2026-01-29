@@ -40,7 +40,7 @@ services:
         type: SECRET
         value: "EX_CHANGE_ME_YOUR_OPENAI_API_KEY"
       - key: OPENAI_MODEL
-        value: "gpt-4o"
+        value: "gpt-5.2"
       - key: OPENAI_EMBEDDING_MODEL
         value: "text-embedding-3-small"
       - key: VECTORSTORE_DIR

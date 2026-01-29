@@ -136,20 +136,22 @@ body {
 /* Main content area */
 .app-main {
   flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 2rem;
-  max-width: 1600px;
-  margin: 0 auto;
+  width: 100%;
+}
+
+.app-main > .form-container,
+.app-main > .results-page {
+  max-width: 800px;
   width: 100%;
 }
 
 @media (max-width: 1024px) {
   .app-main {
-    grid-template-columns: 1fr;
     padding: 1.5rem;
-    gap: 1.5rem;
   }
 }
 
@@ -948,32 +950,6 @@ body {
 }
 
 /* =============================================================================
-   Placeholder State
-   ============================================================================= */
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-  text-align: center;
-  color: var(--color-gray-500);
-  padding: 2rem;
-}
-
-.placeholder::before {
-  content: '';
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, var(--color-primary-100) 0%, var(--color-teal-100) 100%);
-  border-radius: 50%;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* =============================================================================
    Mobile Optimizations
    ============================================================================= */
 @media (max-width: 768px) {
@@ -1258,6 +1234,7 @@ body {
   min-height: 80px;
   transition: all var(--transition-fast);
   background: white;
+  color: var(--color-gray-800);
 }
 
 .clinical-field.detail-textarea textarea:focus {
@@ -1382,6 +1359,109 @@ body {
   .guideline-tab {
     text-align: center;
   }
+}
+
+/* =============================================================================
+   Results Page
+   ============================================================================= */
+.results-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.new-evaluation-button {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: var(--gradient-button);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  margin-top: 1.5rem;
+}
+
+.new-evaluation-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4);
+}
+
+.new-evaluation-button:active {
+  transform: translateY(0);
+}
+
+/* =============================================================================
+   Progress Bar
+   ============================================================================= */
+.progress-bar-wrapper {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 2rem 1.75rem;
+}
+
+.progress-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--color-gray-700);
+}
+
+.progress-bar-percent {
+  color: var(--color-primary-600);
+  font-size: 1.125rem;
+}
+
+.progress-bar-track {
+  height: 12px;
+  background: var(--color-gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+  transition: width 100ms linear;
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-bar-text {
+  margin-top: 0.75rem;
+  text-align: center;
+  color: var(--color-gray-500);
+  font-size: 0.875rem;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 /* =============================================================================

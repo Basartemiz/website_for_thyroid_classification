@@ -17,9 +17,12 @@ Yanıtlarında:
 2. Kılavuz referanslarına atıfta bulun
 3. Klinik karar vermeye yardımcı ol
 4. Açık ve anlaşılır ol
+5. Kısa ve öz yanıtlar ver, gereksiz detaylardan kaçın
+6. Sadece verilen nodülün değerlendirmesiyle doğrudan ilgili bilgileri sun
 
 Verilen bağlam bilgilerini kullanarak soruları yanıtla.
-Bağlamda olmayan bilgiler için "Bu konuda kılavuzlarda yeterli bilgi bulunmamaktadır" de."""
+Bağlamda olmayan bilgiler için "Bu konuda kılavuzlarda yeterli bilgi bulunmamaktadır" de.
+Her kılavuz bölümünü en fazla 3-4 cümle ile sınırla. Genel tiroid bilgisi değil, spesifik olarak bu nodüle özgü değerlendirme yap."""
 
 
 def retrieve_guideline_chunks(
@@ -116,7 +119,7 @@ def generate_llm_response(
         action=action,
         nodule_characteristics=nodule_characteristics,
         guideline_filter='turkey',
-        top_k=3
+        top_k=5
     )
 
     us_chunks = retrieve_guideline_chunks(
@@ -192,7 +195,9 @@ US (ACR) Kılavuzu:
 EU Kılavuzu:
 {eu_context if eu_context else "EU kılavuzundan ilgili bilgi bulunamadı."}
 
-Lütfen her kılavuz için AYRI bir değerlendirme yap. Yanıtını şu formatta ver:
+Lütfen her kılavuz için AYRI bir değerlendirme yap. Her bölüm en fazla 3-4 cümle olsun.
+Genel bilgi verme, sadece bu nodülün değerlendirilmesiyle ilgili spesifik bilgileri yaz.
+Yanıtını şu formatta ver:
 
 ### TR Kılavuzuna Göre:
 [Türkiye kılavuzuna dayalı açıklama]
@@ -213,7 +218,7 @@ Lütfen her kılavuz için AYRI bir değerlendirme yap. Yanıtını şu formatta
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
-            max_tokens=2000
+            max_tokens=1200
         )
 
         full_explanation = response.choices[0].message.content
