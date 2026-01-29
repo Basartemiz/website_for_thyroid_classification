@@ -50,8 +50,8 @@ services:
 
       # Gunicorn
       PORT: 8000
-      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
-      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
     volumes:
       - chroma_data:/data/chroma
       # Mount assets directory for PDF guidelines (optional)

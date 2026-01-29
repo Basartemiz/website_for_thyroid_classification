@@ -48,9 +48,9 @@ services:
       - key: INIT_VECTORSTORE
         value: "false"
       - key: GUNICORN_WORKERS
-        value: "2"
+        value: "1"
       - key: GUNICORN_THREADS
-        value: "4"
+        value: "2"
       - key: PORT
         value: "8000"
 
