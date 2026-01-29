@@ -1,7 +1,7 @@
 """
 Django management command to ingest PDF guidelines into the vector store.
 
-Memory-efficient: processes and stores one page at a time.
+Memory-efficient: opens PDF per page, closes immediately after extraction.
 """
 
 import gc
@@ -49,14 +49,12 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Found {len(pdf_files)} PDF files to process")
 
-        # Initialize vector store
         vectorstore = get_vectorstore()
 
         if options['reset']:
             self.stdout.write("Resetting vector store...")
             vectorstore.delete_collection()
 
-        # Initialize tokenizer
         try:
             tokenizer = tiktoken.encoding_for_model("gpt-4")
         except Exception:
@@ -71,93 +69,98 @@ class Command(BaseCommand):
             self.stdout.write(f"\nProcessing: {pdf_path.name}")
 
             try:
-                added = self._process_pdf_streaming(
-                    pdf_path,
-                    vectorstore,
-                    tokenizer,
-                    chunk_size,
-                    chunk_overlap
+                added = self._process_pdf_page_by_page(
+                    pdf_path, vectorstore, tokenizer,
+                    chunk_size, chunk_overlap
                 )
                 total_chunks += added
                 self.stdout.write(self.style.SUCCESS(
                     f"  Done: {added} chunks added"
                 ))
-
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"  Error: {str(e)}"))
 
-            # Force garbage collection between PDFs
             gc.collect()
 
         self.stdout.write(self.style.SUCCESS(
             f"\nIngestion complete. Total chunks: {total_chunks}"
         ))
 
-        # Verify
         count = vectorstore.count()
         self.stdout.write(f"Vector store now contains {count} documents")
 
-    def _process_pdf_streaming(
+    def _get_page_count(self, pdf_path):
+        """Open PDF only to get page count, then close immediately."""
+        with pdfplumber.open(pdf_path) as pdf:
+            return len(pdf.pages)
+
+    def _extract_single_page(self, pdf_path, page_index):
+        """Open PDF, extract one page's text, close immediately."""
+        with pdfplumber.open(pdf_path) as pdf:
+            page = pdf.pages[page_index]
+            text = page.extract_text()
+        return text
+
+    def _process_pdf_page_by_page(
         self, pdf_path, vectorstore, tokenizer, chunk_size, chunk_overlap
     ):
         """
-        Process a PDF page-by-page, writing each page's chunks to the
-        vector store immediately to minimize memory usage.
+        Process PDF one page at a time. Opens and closes the file
+        for each page to keep memory flat.
         """
         doc_id = pdf_path.name
+        total_pages = self._get_page_count(pdf_path)
+        self.stdout.write(f"  Pages: {total_pages}")
         added = 0
 
-        with pdfplumber.open(pdf_path) as pdf:
-            total_pages = len(pdf.pages)
-            self.stdout.write(f"  Pages: {total_pages}")
+        for page_num in range(total_pages):
+            # Open PDF, grab one page, close PDF
+            text = self._extract_single_page(pdf_path, page_num)
 
-            for page_num in range(total_pages):
-                # Load one page at a time
-                page = pdf.pages[page_num]
-                text = page.extract_text()
+            if not text or not text.strip():
+                continue
 
-                if not text or not text.strip():
-                    continue
+            text = self._clean_text(text)
 
-                text = self._clean_text(text)
+            page_chunks = self._chunk_text(
+                text, tokenizer, chunk_size, chunk_overlap
+            )
 
-                page_chunks = self._chunk_text(
-                    text, tokenizer, chunk_size, chunk_overlap
-                )
+            if not page_chunks:
+                continue
 
-                if not page_chunks:
-                    continue
+            chunks = []
+            metadatas = []
+            ids = []
 
-                # Build batch for this page only
-                chunks = []
-                metadatas = []
-                ids = []
+            for chunk_idx, chunk_text in enumerate(page_chunks):
+                chunk_id = f"{doc_id.replace('.pdf', '')}_{page_num + 1}_{chunk_idx:02d}"
+                chunks.append(chunk_text)
+                metadatas.append({
+                    'doc_id': doc_id,
+                    'page': page_num + 1,
+                    'chunk_id': chunk_id,
+                })
+                ids.append(chunk_id)
 
-                for chunk_idx, chunk_text in enumerate(page_chunks):
-                    chunk_id = f"{doc_id.replace('.pdf', '')}_{page_num + 1}_{chunk_idx:02d}"
-                    chunks.append(chunk_text)
-                    metadatas.append({
-                        'doc_id': doc_id,
-                        'page': page_num + 1,
-                        'chunk_id': chunk_id,
-                    })
-                    ids.append(chunk_id)
+            vectorstore.add_documents(
+                documents=chunks,
+                metadatas=metadatas,
+                ids=ids
+            )
+            added += len(chunks)
 
-                # Write immediately, then free memory
-                vectorstore.add_documents(
-                    documents=chunks,
-                    metadatas=metadatas,
-                    ids=ids
-                )
-                added += len(chunks)
-
+            # Log every 50 pages to reduce output noise
+            if (page_num + 1) % 50 == 0 or page_num == total_pages - 1:
                 self.stdout.write(
-                    f"  Page {page_num + 1}/{total_pages}: "
-                    f"{len(chunks)} chunks stored"
+                    f"  Progress: {page_num + 1}/{total_pages} pages, "
+                    f"{added} chunks stored"
                 )
 
-                # Free page data
-                del chunks, metadatas, ids, page_chunks, text
+            # Free everything and collect garbage every 10 pages
+            del chunks, metadatas, ids, page_chunks, text
+            if (page_num + 1) % 10 == 0:
+                gc.collect()
 
         return added
 
@@ -180,15 +183,13 @@ class Command(BaseCommand):
         chunk_size: int,
         chunk_overlap: int
     ) -> list:
-        """
-        Split text into overlapping chunks based on token count.
-        """
+        """Split text into overlapping chunks based on token count."""
         tokens = tokenizer.encode(text)
-        chunks = []
 
         if len(tokens) <= chunk_size:
             return [text]
 
+        chunks = []
         start = 0
         while start < len(tokens):
             end = min(start + chunk_size, len(tokens))
