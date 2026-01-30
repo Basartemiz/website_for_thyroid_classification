@@ -218,7 +218,7 @@ Yanıtını şu formatta ver:
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.3,
-            max_tokens=1200
+            max_completion_tokens=1200
         )
 
         full_explanation = response.choices[0].message.content
